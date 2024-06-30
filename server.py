@@ -1,7 +1,9 @@
-from flask import Flask
+from flask import Flask, request, redirect
 import random 
 
 app = Flask(__name__)
+
+nextId = 4 
 
 topics = [
     {'id':1, 'title':'html', 'body':'html is ...'},
@@ -9,7 +11,13 @@ topics = [
     {'id':3, 'title':'javascript', 'body':'javascript is ...'}
 ]
 
-def template(contents, content):
+def template(contents, content, id=None):
+    contextUI = ''
+    if id != None:
+        contextUI=f'''
+            <li><a href="/update/{id}/">update</a></li>
+            <li><form action="/delete/{id}/" method="POST"><input type="submit" value="delete"></form></li>
+        '''
     return f'''<!doctype html>
     <html>
         <body>
@@ -20,6 +28,7 @@ def template(contents, content):
             {content}
             <ul>
                 <li><a href="/create/">create</a></li>
+                {contextUI}
             </ul>
         </body>
     </html>
@@ -45,23 +54,68 @@ def reader(id):
             title = topic['title']
             body = topic['body']
             break
-    print(title,body)
-    return template(getContents(), f'<h2>{title}</h2>{body}')
+    return template(getContents(), f'<h2>{title}</h2>{body}', id)
 
-@app.route('/create/')
+@app.route('/create/', methods=['GET','POST'])
 def create():
-    content = '''
-        <form action="/create/" method="POST">
-            <p><input type="text" name="title" placeholder="title"></p>
-            <p><textarea name="body" placeholder="body"></textarea></p>
-            <p><input type="submit" value="create"></p>
-        </form>
-    '''
-    return template(getContents(), content)
+    if request.method == 'GET':
+        content = '''
+            <form action="/create/" method="POST">
+                <p><input type="text" name="title" placeholder="title"></p>
+                <p><textarea name="body" placeholder="body"></textarea></p>
+                <p><input type="submit" value="create"></p>
+            </form>
+        '''
+        return template(getContents(), content)
+    elif request.method=='POST':
+        global nextId # 전역 변수 
+        title = request.form['title']
+        body = request.form['body']
+        newTopic = {'id':nextId, 'title':title, 'body':body}
+        topics.append(newTopic)
+        url = '/read/'+str(nextId)+'/'
+        nextId = nextId + 1
+        return redirect(url)
 
-@app.route('/read/<id>/') # <> 사이에 이름을 지정하고 이를 파라미터로 하면, 동적으로 가능 
-def read(id):
-    print(id)
-    return 'Read '+id
+@app.route('/update/<int:id>/', methods=['GET','POST'])
+def update(id):
+    if request.method == 'GET':
+        # read 기능 
+        title=''
+        body=''
+        for topic in topics:
+            if id==topic['id']:
+                title = topic['title']
+                body = topic['body']
+                break
+        # create 기능 
+        content = f'''
+            <form action="/update/{id}/" method="POST">
+                <p><input type="text" name="title" placeholder="title" value="{title}"></p>
+                <p><textarea name="body" placeholder="body">{body}</textarea></p>
+                <p><input type="submit" value="update"></p>
+            </form>
+        '''
+        return template(getContents(), content)
+    elif request.method=='POST':
+        global nextId # 전역 변수 
+        title = request.form['title']
+        body = request.form['body']
+        for topic in topics:
+            if id==topic['id']:
+                topic['title'] = title
+                topic['body'] = body
+                break
+        url = '/read/'+str(id)+'/'
+        return redirect(url)
+
+@app.route('/delete/<int:id>/', methods=['POST'])
+def delete(id):
+    for topic in topics:
+        if id==topic['id']:
+            topics.remove(topic)
+            break
+    return redirect('/')
+
 
 app.run(port=5001, debug=True) # 디버깅 모드로 플라스크 실행 # 서버를 재부팅하지 않아도, 자동으로 서버가 재부팅됨.
